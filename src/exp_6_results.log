@@ -1,0 +1,26 @@
+Prix B-S de référence: 0.042004
+
+(a) Convergence en N (n_steps=180 fixé)...
+  N=   100: prix=0.041191, SE=0.000157, biais=-1.936%, temps=0.0s
+  N=   500: prix=0.041185, SE=0.000081, biais=-1.949%, temps=0.2s
+  N=  1000: prix=0.041139, SE=0.000052, biais=-2.059%, temps=0.4s
+  N=  2000: prix=0.041119, SE=0.000039, biais=-2.107%, temps=0.7s
+  N=  5000: prix=0.041179, SE=0.000024, biais=-1.964%, temps=1.7s
+  N= 10000: prix=0.041141, SE=0.000017, biais=-2.055%, temps=3.5s
+  N= 20000: prix=0.041149, SE=0.000012, biais=-2.036%, temps=7.0s
+  N= 50000: prix=0.041163, SE=0.000008, biais=-2.001%, temps=17.4s
+
+(b) Biais de discrétisation en n (N=10000 fixé)...
+  n=  10: prix=0.041192, SE=0.000018, biais=-1.933%
+  n=  25: prix=0.041203, SE=0.000018, biais=-1.907%
+  n=  50: prix=0.041145, SE=0.000017, biais=-2.046%
+  n= 100: prix=0.041148, SE=0.000017, biais=-2.038%
+  n= 180: prix=0.041128, SE=0.000017, biais=-2.084%
+  n= 252: prix=0.041166, SE=0.000017, biais=-1.995%
+  n= 500: prix=0.041165, SE=0.000018, biais=-1.998%
+
+(c) Comparaison avec/sans variables antithétiques (N=5000, n=180)...
+  Variance SANS antithétiques: 0.00007019
+  Variance AVEC antithétiques: 0.00000299
+  Réduction de variance: 95.7%
+  Ratio: 23.49x plus efficace avec antithétiques

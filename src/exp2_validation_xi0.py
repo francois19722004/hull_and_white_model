@@ -70,11 +70,11 @@ sigma0 = 0.15
 V0 = sigma0**2
 mu = 0.0
 xi = 0.0  # <-- VOL-OF-VOL NULLE
-n_steps = 252
-n_sims = 50000
+n_steps = 50
+n_sims = 5000
 
-# Grille de strikes
-moneyness = np.arange(0.80, 1.21, 0.02)
+# 4 strikes seulement : OTM, légèrement OTM, ATM, ITM
+moneyness = np.array([0.85, 0.95, 1.00, 1.10])
 strikes = moneyness * S0
 
 print("=" * 70)
@@ -98,7 +98,7 @@ fig, ax = plt.subplots(figsize=(10, 6))
 valid = [not np.isnan(s) for s in sigma_imps]
 m_valid = moneyness[valid]
 s_valid = np.array(sigma_imps)[valid] * 100
-ax.plot(m_valid, s_valid, 'bo-', markersize=5, linewidth=2, label='σ_imp (MC, ξ=0)')
+ax.plot(m_valid, s_valid, 'bo-', markersize=8, linewidth=2, label='σ_imp (MC, ξ=0)')
 ax.axhline(sigma0 * 100, color='red', linestyle='--', linewidth=2, label=f'σ₀ = {sigma0*100:.0f}%')
 ax.set_xlabel('K / S₀ (moneyness)', fontsize=13)
 ax.set_ylabel('Volatilité implicite (%)', fontsize=13)

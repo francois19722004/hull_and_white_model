@@ -9,12 +9,20 @@ Expérience 8 — Smiles de volatilité implicite
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import time
 
 def bs_call(S, K, r, T, sigma):
     if sigma <= 1e-12 or T <= 0:
         return max(S - K * np.exp(-r * T), 0.0)
     d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
+    return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+def bs_call_vec(S, K, r, T, sigma_vec):
+    """Prix B-S vectorisé sur un vecteur de volatilités."""
+    sigma_vec = np.maximum(sigma_vec, 1e-12)
+    d1 = (np.log(S / K) + (r + sigma_vec**2 / 2) * T) / (sigma_vec * np.sqrt(T))
+    d2 = d1 - sigma_vec * np.sqrt(T)
     return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
 
 def implied_vol_bisection(S, K, r, T, price, tol=1e-8, max_iter=200):
@@ -34,47 +42,55 @@ def implied_vol_bisection(S, K, r, T, price, tol=1e-8, max_iter=200):
     return sig_mid
 
 def mc_rho0(S0, K, r, T, V0, mu, xi, n_steps, n_sims):
-    """MC ρ=0 : simule V seul, avec antithétiques."""
+    """MC ρ=0 VECTORISÉ : simule V seul, avec antithétiques."""
     dt = T / n_steps
-    prices = np.zeros(n_sims)
-    for sim in range(n_sims):
-        z = np.random.randn(n_steps)
-        V = np.zeros(n_steps + 1)
-        V[0] = V0
-        for i in range(n_steps):
-            V[i+1] = V[i] * np.exp((mu - xi**2/2) * dt + xi * np.sqrt(dt) * z[i])
-        V_bar1 = np.mean(V)
-        P1 = bs_call(S0, K, r, T, np.sqrt(max(V_bar1, 1e-12)))
-        V_anti = np.zeros(n_steps + 1)
-        V_anti[0] = V0
-        for i in range(n_steps):
-            V_anti[i+1] = V_anti[i] * np.exp((mu - xi**2/2) * dt + xi * np.sqrt(dt) * (-z[i]))
-        V_bar2 = np.mean(V_anti)
-        P2 = bs_call(S0, K, r, T, np.sqrt(max(V_bar2, 1e-12)))
-        prices[sim] = (P1 + P2) / 2
-    return np.mean(prices)
+    Z = np.random.randn(n_sims, n_steps)
+    
+    log_inc = (mu - xi**2 / 2) * dt + xi * np.sqrt(dt) * Z
+    log_V = np.zeros((n_sims, n_steps + 1))
+    log_V[:, 0] = np.log(V0)
+    for i in range(n_steps):
+        log_V[:, i+1] = log_V[:, i] + log_inc[:, i]
+    V_bar1 = np.mean(np.exp(log_V), axis=1)
+    P1 = bs_call_vec(S0, K, r, T, np.sqrt(V_bar1))
+    
+    log_inc_anti = (mu - xi**2 / 2) * dt + xi * np.sqrt(dt) * (-Z)
+    log_V_anti = np.zeros((n_sims, n_steps + 1))
+    log_V_anti[:, 0] = np.log(V0)
+    for i in range(n_steps):
+        log_V_anti[:, i+1] = log_V_anti[:, i] + log_inc_anti[:, i]
+    V_bar2 = np.mean(np.exp(log_V_anti), axis=1)
+    P2 = bs_call_vec(S0, K, r, T, np.sqrt(V_bar2))
+    
+    return np.mean((P1 + P2) / 2)
 
 def mc_rho_nonzero(S0, K, r, T, V0, mu, xi, rho, n_steps, n_sims):
-    """MC ρ≠0 : simule S et V conjointement, avec antithétiques sur u."""
+    """MC ρ≠0 VECTORISÉ : simule S et V conjointement, antithétiques sur u."""
     dt = T / n_steps
-    payoffs = np.zeros(n_sims)
-    for sim in range(n_sims):
-        u = np.random.randn(n_steps)
-        v = np.random.randn(n_steps)
-        # Trajectoire directe
-        S1, V1 = S0, V0
-        S2, V2 = S0, V0  # antithétique sur u
-        for i in range(n_steps):
-            S1 = S1 * np.exp((r - V1/2) * dt + np.sqrt(max(V1,0)) * np.sqrt(dt) * u[i])
-            V1 = V1 * np.exp((mu - xi**2/2) * dt + xi * np.sqrt(dt) * (rho * u[i] + np.sqrt(1-rho**2) * v[i]))
-            V1 = max(V1, 1e-12)
-            S2 = S2 * np.exp((r - V2/2) * dt + np.sqrt(max(V2,0)) * np.sqrt(dt) * (-u[i]))
-            V2 = V2 * np.exp((mu - xi**2/2) * dt + xi * np.sqrt(dt) * (rho * (-u[i]) + np.sqrt(1-rho**2) * v[i]))
-            V2 = max(V2, 1e-12)
-        p1 = np.exp(-r * T) * max(S1 - K, 0)
-        p2 = np.exp(-r * T) * max(S2 - K, 0)
-        payoffs[sim] = (p1 + p2) / 2
-    return np.mean(payoffs)
+    sqrt_dt = np.sqrt(dt)
+    sqrt_1_rho2 = np.sqrt(1 - rho**2)
+    
+    U = np.random.randn(n_sims, n_steps)
+    Vn = np.random.randn(n_sims, n_steps)
+    
+    S1 = np.full(n_sims, S0)
+    V1 = np.full(n_sims, V0)
+    S2 = np.full(n_sims, S0)
+    V2 = np.full(n_sims, V0)
+    
+    for i in range(n_steps):
+        u_i = U[:, i]
+        v_i = Vn[:, i]
+        
+        S1 = S1 * np.exp((r - V1/2) * dt + np.sqrt(np.maximum(V1, 0)) * sqrt_dt * u_i)
+        V1 = np.maximum(V1 * np.exp((mu - xi**2/2) * dt + xi * sqrt_dt * (rho * u_i + sqrt_1_rho2 * v_i)), 1e-12)
+        
+        S2 = S2 * np.exp((r - V2/2) * dt + np.sqrt(np.maximum(V2, 0)) * sqrt_dt * (-u_i))
+        V2 = np.maximum(V2 * np.exp((mu - xi**2/2) * dt + xi * sqrt_dt * (rho * (-u_i) + sqrt_1_rho2 * v_i)), 1e-12)
+    
+    p1 = np.exp(-r * T) * np.maximum(S1 - K, 0)
+    p2 = np.exp(-r * T) * np.maximum(S2 - K, 0)
+    return np.mean((p1 + p2) / 2)
 
 # Paramètres de base
 S0 = 1.0
@@ -82,14 +98,14 @@ r = 0.0
 sigma0 = 0.15
 V0 = sigma0**2
 mu = 0.0
-n_steps = 180
-n_sims = 20000
+n_steps = 90
+n_sims = 10000
 
 # Grille de moneyness
-moneyness = np.arange(0.88, 1.13, 0.02)
+moneyness = np.arange(0.88, 1.13, 0.03)
 
 def compute_smile(rho, xi, T, label=""):
-    """Calcule le smile pour un jeu de paramètres donné."""
+    t0 = time.time()
     sigma_imps = []
     for sx in moneyness:
         K = S0 / sx
@@ -99,8 +115,9 @@ def compute_smile(rho, xi, T, label=""):
             price = mc_rho_nonzero(S0, K, r, T, V0, mu, xi, rho, n_steps, n_sims)
         sig = implied_vol_bisection(S0, K, r, T, price)
         sigma_imps.append(sig * 100 if not np.isnan(sig) else np.nan)
+    elapsed = time.time() - t0
     if label:
-        print(f"  {label} terminé")
+        print(f"  {label} terminé ({elapsed:.1f}s)")
     return sigma_imps
 
 # =====================================================
@@ -142,7 +159,7 @@ ax.grid(True, alpha=0.3)
 # =====================================================
 # (c) Effet de ρ
 # =====================================================
-print("\n(c) Effet de ρ (le plus long)...")
+print("\n(c) Effet de ρ...")
 ax = axes[1, 0]
 colors_rho = {-1.0: 'darkblue', -0.5: 'royalblue', 0.0: 'green', 0.5: 'orange', 1.0: 'red'}
 for rho_val in [-1.0, -0.5, 0.0, 0.5, 1.0]:
