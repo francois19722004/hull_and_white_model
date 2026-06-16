@@ -1,0 +1,9 @@
+Facteur de reduction de variance par antithetiques
+Parametres : S0=1.0, r=0.0, sigma0=10%, xi=1, mu=0, rho=0, T=180j, K=S0 (ATM)
+N=50000, n=180, 10 replications independantes
+
+Var(prix) standard    : 0.0000000009
+Var(prix) antithetique : 0.0000000000
+Variance reduction factor (antithetic vs standard): 33.18
+
+SE standard: 0.000025 | SE antithetic: 0.000005
